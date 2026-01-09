@@ -43,6 +43,10 @@ class SimpleDomainControllerImpl(BaseDomainController):
             if stored_pwd == password:
                 return True
         return False
+    
+    def supports_http_digest_auth(self):
+        """Не поддерживаем digest auth"""
+        return False
 
 
 # Конфигурация WsgiDAVApp
