@@ -17,13 +17,18 @@ from teledav.config import settings
 from teledav.db.models import create_tables, AsyncSessionLocal, User
 from teledav.db.service import DatabaseService
 from teledav.storage.s3 import s3_storage
-from teledav.bot.service import telegram_service
+from teledav.bot.service import TelegramService
 from teledav.db.models import FileChunk
 
 logger = logging.getLogger(__name__)
 
+from aiogram import Bot
+
 JWT_SECRET = "teledav-secret-key-2024"
 JWT_ALGORITHM = "HS256"
+
+bot = Bot(token=settings.bot_token)
+telegram_service = TelegramService(bot)
 
 
 # ============ Pydantic Models ============

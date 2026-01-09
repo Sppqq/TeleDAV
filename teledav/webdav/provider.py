@@ -10,7 +10,7 @@ from typing import List, Optional
 from wsgidav.dav_provider import DAVProvider, DAVCollection, _DAVResource
 from teledav.db.models import AsyncSessionLocal, File, Folder, User
 from teledav.db.service import DatabaseService
-from teledav.bot.service import telegram_service
+from teledav.bot.service import TelegramService
 from teledav.config import settings
 from sqlalchemy import select
 import hashlib
@@ -55,7 +55,7 @@ class TeleDAVResource(_DAVResource):
             data = bytearray()
             for chunk in chunks:
                 if chunk.message_id:
-                    chunk_data = await telegram_service.download_chunk(str(chunk.message_id))
+                    chunk_data = await self.telegram_service.download_chunk(str(chunk.message_id))
                     if chunk_data:
                         data.extend(chunk_data)
             return data
@@ -91,7 +91,7 @@ class TeleDAVResource(_DAVResource):
             if not folder:
                 folder_name = os.path.basename(parent_path) if parent_path != "/" else user.username
                 folder = await db_service.create_folder(folder_name, parent_path, user.id)
-                topic_id = await telegram_service.create_topic(folder_name)
+                topic_id = await self.telegram_service.create_topic(folder_name)
                 if topic_id:
                     await db_service.update_folder_topic(folder.id, topic_id, user.id)
 
@@ -103,7 +103,7 @@ class TeleDAVResource(_DAVResource):
                 chunk_content = buffer.read(settings.chunk_size)
                 if not chunk_content: break
                 chunk_obj = await db_service.create_chunk(file_obj.id, chunk_index, len(chunk_content))
-                result = await telegram_service.upload_chunk(folder.topic_id, chunk_content, f"{file_name}.part{chunk_index}")
+                result = await self.telegram_service.upload_chunk(folder.topic_id, chunk_content, f"{file_name}.part{chunk_index}")
                 if result:
                     await db_service.update_chunk_message_ids(chunk_obj.id, result[0], folder.topic_id)
                 chunk_index += 1

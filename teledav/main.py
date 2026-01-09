@@ -95,7 +95,9 @@ async def main():
 
     # Настройка бота
     bot = Bot(token=settings.bot_token)
-    dp = Dispatcher()
+    from teledav.bot.service import TelegramService
+    telegram_service = TelegramService(bot)
+    dp = Dispatcher(telegram_service=telegram_service)
     dp.include_router(bot_router)
 
     # Настройка WebDAV

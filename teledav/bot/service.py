@@ -112,5 +112,3 @@ class TelegramService:
             return None
 
 
-_bot = Bot(token=settings.bot_token)
-telegram_service = TelegramService(_bot)
