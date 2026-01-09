@@ -1,11 +1,11 @@
 """
 FastAPI приложение для TeleDAV.
-Полноценный REST API с аутентификацией и управлением файлами.
+Полноценный REST API с веб интерфейсом, аутентификацией и S3 поддержкой.
 """
 import logging
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import List, Optional
 import jwt
@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from teledav.config import settings
 from teledav.db.models import create_tables, AsyncSessionLocal, User
 from teledav.db.service import DatabaseService
+from teledav.storage.s3 import s3_storage
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ class FileInfo(BaseModel):
 # Создаем FastAPI приложение
 app = FastAPI(
     title="TeleDAV",
-    description="Telegram-powered file storage with REST API",
+    description="Telegram-powered file storage with web UI and S3",
     version="1.0.0"
 )
 
@@ -115,8 +116,13 @@ async def startup_event():
     try:
         await create_tables()
         logger.info("✅ Database initialized successfully")
+        
+        if s3_storage.enabled:
+            logger.info("✅ S3 storage enabled")
+        else:
+            logger.info("⚠️  S3 storage disabled - using Telegram")
     except Exception as e:
-        logger.error(f"❌ Error initializing database: {e}")
+        logger.error(f"❌ Error initializing: {e}")
 
 
 @app.on_event("shutdown")
@@ -128,7 +134,458 @@ async def shutdown_event():
 @app.get("/health")
 async def health_check():
     """Проверка здоровья приложения"""
-    return {"status": "ok", "service": "TeleDAV"}
+    return {
+        "status": "ok",
+        "service": "TeleDAV",
+        "s3_enabled": s3_storage.enabled
+    }
+
+
+# ============ WEB INTERFACE ============
+
+@app.get("/app", response_class=HTMLResponse)
+async def web_app():
+    """Веб приложение - SPA"""
+    return """<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeleDAV - File Storage</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 500px;
+            padding: 40px;
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        input[type="text"],
+        input[type="password"],
+        input[type="email"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+        }
+        
+        .toggle-form {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+        }
+        
+        .toggle-form a {
+            color: #667eea;
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .error {
+            background: #fee;
+            color: #c00;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .success {
+            background: #efe;
+            color: #0a0;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .dashboard {
+            display: none;
+        }
+        
+        .dashboard.active {
+            display: block;
+        }
+        
+        .auth-forms {
+            display: block;
+        }
+        
+        .auth-forms.hidden {
+            display: none;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .logout-btn {
+            width: auto;
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+        
+        .file-upload {
+            border: 2px dashed #667eea;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .file-upload:hover {
+            background: #f5f5f5;
+        }
+        
+        .files-list {
+            margin-top: 20px;
+        }
+        
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        
+        .file-info {
+            flex: 1;
+        }
+        
+        .file-name {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .file-size {
+            font-size: 12px;
+            color: #999;
+        }
+        
+        .file-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+            width: auto;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        .btn-small.delete {
+            background: #e74c3c;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="auth-forms">
+            <div class="logo">📦 TeleDAV</div>
+            
+            <div id="login-form">
+                <h2 style="margin-bottom: 20px; color: #333;">Login</h2>
+                <div class="error" id="login-error"></div>
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="login-username" placeholder="Enter username">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" placeholder="Enter password">
+                </div>
+                <button onclick="login()">Login</button>
+                <div class="toggle-form">
+                    Don't have account? <a onclick="toggleForms()">Register</a>
+                </div>
+            </div>
+            
+            <div id="register-form" style="display: none;">
+                <h2 style="margin-bottom: 20px; color: #333;">Register</h2>
+                <div class="error" id="register-error"></div>
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="register-username" placeholder="Choose username">
+                </div>
+                <div class="form-group">
+                    <label>Email (optional)</label>
+                    <input type="email" id="register-email" placeholder="Enter email">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="register-password" placeholder="Enter password">
+                </div>
+                <button onclick="register()">Register</button>
+                <div class="toggle-form">
+                    Already have account? <a onclick="toggleForms()">Login</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="dashboard">
+            <div class="header">
+                <h2 style="color: #333;">My Files</h2>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+            
+            <div class="success" id="upload-success"></div>
+            <div class="error" id="upload-error"></div>
+            
+            <div class="file-upload" onclick="document.getElementById('file-input').click()">
+                <div style="font-size: 40px;">📁</div>
+                <div style="color: #667eea; font-weight: 600;">Click or drag files here</div>
+            </div>
+            <input type="file" id="file-input" onchange="uploadFile()">
+            
+            <div class="files-list" id="files-list">
+                <p style="color: #999; text-align: center;">No files yet</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = '/api';
+        let token = localStorage.getItem('token');
+        
+        function toggleForms() {
+            document.getElementById('login-form').style.display = 
+                document.getElementById('login-form').style.display === 'none' ? 'block' : 'none';
+            document.getElementById('register-form').style.display = 
+                document.getElementById('register-form').style.display === 'none' ? 'block' : 'none';
+        }
+        
+        async function register() {
+            const username = document.getElementById('register-username').value;
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+            const errorDiv = document.getElementById('register-error');
+            
+            try {
+                const res = await fetch(API_URL + '/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password })
+                });
+                
+                if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.detail || 'Registration failed');
+                }
+                
+                const data = await res.json();
+                localStorage.setItem('token', data.access_token);
+                showDashboard();
+            } catch (err) {
+                errorDiv.textContent = err.message;
+                errorDiv.style.display = 'block';
+            }
+        }
+        
+        async function login() {
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+            const errorDiv = document.getElementById('login-error');
+            
+            try {
+                const res = await fetch(API_URL + '/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                if (!res.ok) {
+                    throw new Error('Invalid credentials');
+                }
+                
+                const data = await res.json();
+                localStorage.setItem('token', data.access_token);
+                showDashboard();
+            } catch (err) {
+                errorDiv.textContent = err.message;
+                errorDiv.style.display = 'block';
+            }
+        }
+        
+        async function uploadFile() {
+            const fileInput = document.getElementById('file-input');
+            const file = fileInput.files[0];
+            const errorDiv = document.getElementById('upload-error');
+            const successDiv = document.getElementById('upload-success');
+            
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const res = await fetch(API_URL + '/files/upload', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token },
+                    body: formData
+                });
+                
+                if (!res.ok) throw new Error('Upload failed');
+                
+                successDiv.textContent = 'File uploaded successfully!';
+                successDiv.style.display = 'block';
+                fileInput.value = '';
+                loadFiles();
+                
+                setTimeout(() => successDiv.style.display = 'none', 3000);
+            } catch (err) {
+                errorDiv.textContent = err.message;
+                errorDiv.style.display = 'block';
+            }
+        }
+        
+        async function loadFiles() {
+            try {
+                const res = await fetch(API_URL + '/files', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                
+                if (!res.ok) throw new Error('Failed to load files');
+                
+                const files = await res.json();
+                const list = document.getElementById('files-list');
+                
+                if (files.length === 0) {
+                    list.innerHTML = '<p style="color: #999; text-align: center;">No files yet</p>';
+                    return;
+                }
+                
+                list.innerHTML = files.map(f => `
+                    <div class="file-item">
+                        <div class="file-info">
+                            <div class="file-name">${f.name}</div>
+                            <div class="file-size">${(f.size / 1024).toFixed(2)} KB</div>
+                        </div>
+                        <div class="file-actions">
+                            <button class="btn-small delete" onclick="deleteFile(${f.id})">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error(err);
+            }
+        }
+        
+        async function deleteFile(id) {
+            if (!confirm('Delete this file?')) return;
+            
+            try {
+                const res = await fetch(API_URL + '/files/' + id, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                
+                if (!res.ok) throw new Error('Delete failed');
+                
+                loadFiles();
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+        
+        function showDashboard() {
+            document.querySelector('.auth-forms').style.display = 'none';
+            document.querySelector('.dashboard').style.display = 'block';
+            loadFiles();
+        }
+        
+        function logout() {
+            localStorage.removeItem('token');
+            token = null;
+            document.querySelector('.auth-forms').style.display = 'block';
+            document.querySelector('.dashboard').style.display = 'none';
+            document.getElementById('login-form').style.display = 'block';
+            document.getElementById('register-form').style.display = 'none';
+        }
+        
+        if (token) {
+            showDashboard();
+        }
+    </script>
+</body>
+</html>"""
 
 
 @app.get("/")
@@ -137,10 +594,11 @@ async def root():
     return {
         "message": "TeleDAV - Telegram-powered file storage",
         "version": "1.0.0",
-        "endpoints": {
-            "auth": "/api/auth/register, /api/auth/login",
-            "files": "/api/files (GET), /api/files/upload (POST), /api/files/{id} (GET, DELETE)",
-            "docs": "/docs"
+        "web_app": "/app",
+        "docs": "/docs",
+        "api": {
+            "auth": ["/api/auth/register (POST)", "/api/auth/login (POST)"],
+            "files": ["/api/files (GET)", "/api/files/upload (POST)", "/api/files/{id} (GET, DELETE)"]
         }
     }
 
@@ -151,14 +609,12 @@ async def root():
 async def register(user_data: UserRegister):
     """Регистрация нового пользователя"""
     async with AsyncSessionLocal() as session:
-        # Проверяем если пользователь уже существует
         result = await session.execute(
             session.query(User).filter(User.username == user_data.username)
         )
         if result.scalars().first():
             raise HTTPException(status_code=400, detail="Username already exists")
         
-        # Создаём пользователя
         user = User(
             username=user_data.username,
             email=user_data.email or f"{user_data.username}@teledav.local",
@@ -209,11 +665,16 @@ async def upload_file(
     async with AsyncSessionLocal() as session:
         db_service = DatabaseService(session)
         
-        # Читаем файл в памяти
         content = await file.read()
         file_size = len(content)
         
-        # Сохраняем файл
+        # Если S3 включен, сохраняем туда
+        if s3_storage.enabled:
+            file_key = f"{current_user['user_id']}/{file.filename}"
+            success = await s3_storage.upload(file_key, content)
+            if not success:
+                raise HTTPException(status_code=500, detail="Failed to upload to S3")
+        
         file_obj = await db_service.create_file(
             folder_id=1,
             name=file.filename,
@@ -227,6 +688,7 @@ async def upload_file(
             "name": file_obj.name,
             "size": file_obj.size,
             "path": file_obj.path,
+            "storage": "s3" if s3_storage.enabled else "telegram",
             "message": "File uploaded successfully"
         }
 
@@ -278,6 +740,10 @@ async def delete_file(file_id: int, current_user: dict = Depends(get_current_use
         file_obj = await db_service.get_file(file_id)
         if not file_obj:
             raise HTTPException(status_code=404, detail="File not found")
+        
+        if s3_storage.enabled:
+            file_key = f"{current_user['user_id']}/{file_obj.name}"
+            await s3_storage.delete(file_key)
         
         await db_service.delete_file(file_id)
         return {"message": "File deleted successfully"}
