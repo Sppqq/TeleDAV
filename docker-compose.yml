@@ -6,6 +6,6 @@ services:
     env_file:
       - .env
     ports:
-      - "${PORT}:${DAV_PORT}"
+      - "${DAV_PORT}:${DAV_PORT}"
     volumes:
       - ./teledav.db:/app/teledav.db

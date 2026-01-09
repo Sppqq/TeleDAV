@@ -6,7 +6,7 @@ import asyncio
 import logging
 import io
 from typing import List, Optional
-from wsgidav.dav_provider import DAVProvider, DAVCollection, DAVResource
+from wsgidav.dav_provider import DAVProvider, DAVCollection, DAVNullResource
 from wsgidav.util import join_path
 
 from teledav.db.models import AsyncSessionLocal, File, Folder
@@ -17,8 +17,7 @@ from teledav.config import settings
 
 logger = logging.getLogger(__name__)
 
-
-class TeleDAVResource(DAVResource):
+class TeleDAVResource(DAVNullResource):
     """Ресурс WebDAV - представляет файл"""
 
     def __init__(self, path: str, environ: dict, file: Optional[File] = None):
