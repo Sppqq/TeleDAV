@@ -686,7 +686,7 @@ async def upload_file(
                 path=default_folder_path,
                 user_id=user_id,
             )
-            await db_service.update_folder_topic(folder.id, topic_id)
+            await db_service.update_folder_topic(folder.id, topic_id, user_id)
             folder.topic_id = topic_id
 
         if not folder.topic_id:
@@ -695,7 +695,7 @@ async def upload_file(
                 raise HTTPException(
                     status_code=500, detail="Could not create Telegram topic"
                 )
-            await db_service.update_folder_topic(folder.id, topic_id)
+            await db_service.update_folder_topic(folder.id, topic_id, user_id)
             folder.topic_id = topic_id
 
         content = await file.read()

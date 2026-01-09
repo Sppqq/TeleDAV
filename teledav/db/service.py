@@ -27,25 +27,27 @@ class DatabaseService:
         )
         return result.scalars().first()
 
-    async def get_folder_by_id(self, folder_id: int, user_id: int) -> Optional[Folder]:
-        """Получить папку по ID"""
-        result = await self.session.execute(
-            select(Folder).where(Folder.id == folder_id, Folder.user_id == user_id)
-        )
-        return result.scalars().first()
+    async def get_folder_by_id(self, folder_id: int, user_id: int = None) -> Optional[Folder]:  
+        """Получить папку по ID"""  
+        if user_id:  
+            result = await self.session.execute(  
+                select(Folder).where(Folder.id == folder_id, Folder.user_id == user_id)  
+            )  
+            return result.scalars().first()  
+        return await self.session.get(Folder, folder_id)
 
     async def get_all_folders(self) -> List[Folder]:
         """Получить все папки"""
         result = await self.session.execute(select(Folder))
         return result.scalars().all()
 
-    async def update_folder_topic(self, folder_id: int, topic_id: int) -> Optional[Folder]:
-        """Обновить Telegram Topic ID папки"""
-        folder = await self.get_folder_by_id(folder_id)
-        if folder:
-            folder.topic_id = topic_id
-            await self.session.commit()
-            await self.session.refresh(folder)
+    async def update_folder_topic(self, folder_id: int, topic_id: int, user_id: int = None) -> Optional[Folder]:  
+        """Обновить Telegram Topic ID папки"""  
+        folder = await self.get_folder_by_id(folder_id, user_id)  
+        if folder:  
+            folder.topic_id = topic_id  
+            await self.session.commit()  
+            await self.session.refresh(folder)  
         return folder
 
     async def delete_folder(self, folder_id: int) -> bool:
