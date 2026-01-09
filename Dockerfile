@@ -25,8 +25,11 @@ RUN pip install --no-index --find-links=/wheels /wheels/* \
 # Copy the application code
 COPY . .
 
+# Install the package in development mode
+RUN pip install -e .
+
 # Expose the port the app runs on
 EXPOSE 8080
 
 # Command to run the application
-CMD ["python", "teledav/main.py"]
+CMD ["python", "-m", "teledav.main"]
