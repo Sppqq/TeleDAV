@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore"  # Игнорируем лишние переменные окружения
+        extra="ignore"
     )
     
     # Telegram Bot Configuration
@@ -19,3 +19,10 @@ class Settings(BaseSettings):
     dav_port: int = 8080
 
     # Database
+    database_url: str = "sqlite+aiosqlite:///teledav.db"
+
+    # 49.9 MB in bytes
+    chunk_size: int = 49 * 1024 * 1024 + 900 * 1024
+
+
+settings = Settings()
