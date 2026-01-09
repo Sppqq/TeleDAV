@@ -29,8 +29,8 @@ class Settings(BaseSettings):
     s3_region: str = "us-east-1"
     s3_endpoint_url: str = ""  # Для MinIO или других S3-совместимых сервисов
 
-    # 49.9 MB in bytes
-    chunk_size: int = 49 * 1024 * 1024 + 900 * 1024
+    # 19.99 MB in bytes, to avoid Telegram download limits for bots
+    chunk_size: int = int(19.99 * 1024 * 1024)
 
 
 settings = Settings()
