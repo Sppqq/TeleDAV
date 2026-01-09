@@ -610,9 +610,10 @@ async def root():
 async def register(user_data: UserRegister):
     """Регистрация нового пользователя"""
     async with AsyncSessionLocal() as session:
-        result = await session.execute(
+        existing_user = (await session.execute(
             select(User).where(User.username == user_data.username)
-        )
+        )).scalars().first()
+        if existing_user:
             raise HTTPException(status_code=400, detail="Username already exists")
         
         user = User(
