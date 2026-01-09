@@ -1,0 +1,11 @@
+services:
+  teledav:
+    build: .
+    container_name: teledav
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./teledav.db:/app/teledav.db
