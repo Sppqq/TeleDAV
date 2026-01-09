@@ -48,7 +48,7 @@ class SimpleDomainControllerImpl(BaseDomainController):
 # Конфигурация WsgiDAVApp
 dav_config = {
     "provider_mapping": {
-        "/": TeleDAVProvider(),
+        "/": TeleDAVProvider({}),
     },
     "http_authenticator": {
         "domain_controller": SimpleDomainControllerImpl(),
