@@ -55,9 +55,12 @@ class TelegramService:
                 caption=f"Part {chunk_number + 1}",
                 disable_notification=True,
             )
+            logger.info(f"Telegram message object: {message}")
             if message.document:
                 logger.info(f"Uploaded chunk {chunk_number} for '{file_name}'")
                 return message.message_id, message.document.file_id
+            else:
+                logger.warning(f"message.document is None for chunk {chunk_number} of '{file_name}'")
             return None
         except TelegramAPIError as e:
             logger.error(f"Could not upload chunk {chunk_number} for '{file_name}': {e}")
