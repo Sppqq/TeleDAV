@@ -47,7 +47,8 @@ class TelegramService:
     ) -> Optional[tuple]:
         """Загрузить часть файла"""
         try:
-            document = BufferedInputFile(data, filename=f"{file_name}.part{chunk_number}")
+            sanitized_file_name = file_name.replace("'", "")
+            document = BufferedInputFile(data, filename=f"{sanitized_file_name}.part{chunk_number}")
             message = await self.bot.send_document(
                 chat_id=settings.chat_id,
                 message_thread_id=topic_id,
