@@ -17,6 +17,8 @@ from teledav.config import settings
 from teledav.db.models import create_tables, AsyncSessionLocal, User
 from teledav.db.service import DatabaseService
 from teledav.storage.s3 import s3_storage
+from teledav.bot.service import telegram_service
+from teledav.db.models import FileChunk
 
 logger = logging.getLogger(__name__)
 
@@ -659,38 +661,65 @@ async def login(user_data: UserLogin):
 
 @app.post("/api/files/upload")
 async def upload_file(
-    file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
+    file: UploadFile = File(...), current_user: dict = Depends(get_current_user)
 ):
     """Загрузить файл"""
     async with AsyncSessionLocal() as session:
         db_service = DatabaseService(session)
-        
+        user_id = current_user["user_id"]
+        username = current_user["username"]
+
+        # Проверяем и создаем папку по умолчанию для пользователя
+        default_folder_path = f"/{username}/"
+        folder = await db_service.get_folder_by_path(default_folder_path)
+        if not folder:
+            folder = await db_service.create_folder(
+                name=f"{username}'s folder",
+                path=default_folder_path,
+                user_id=user_id,
+            )
+
         content = await file.read()
         file_size = len(content)
-        
-        # Если S3 включен, сохраняем туда
+
+        file_obj = await db_service.create_file(
+            folder_id=folder.id,
+            user_id=user_id,
+            name=file.filename,
+            path=f"{default_folder_path}{file.filename}",
+            size=file_size,
+            mime_type=file.content_type or "application/octet-stream",
+        )
+
         if s3_storage.enabled:
-            file_key = f"{current_user['user_id']}/{file.filename}"
+            file_key = f"{user_id}/{file.filename}"
             success = await s3_storage.upload(file_key, content)
             if not success:
                 raise HTTPException(status_code=500, detail="Failed to upload to S3")
-        
-        file_obj = await db_service.create_file(
-            folder_id=1,
-            name=file.filename,
-            path=f"/{file.filename}",
-            size=file_size,
-            mime_type=file.content_type or "application/octet-stream"
-        )
-        
+        else:
+            # TODO: get topic_id from folder
+            topic_id = 1
+            chunk_obj = await db_service.create_chunk(file_obj.id, 0, file_size)
+            result = await telegram_service.upload_chunk(
+                topic_id, content, file.filename
+            )
+            if result:
+                message_id, _ = result
+                await db_service.update_chunk_message_ids(
+                    chunk_obj.id, message_id, topic_id
+                )
+            else:
+                raise HTTPException(
+                    status_code=500, detail="Failed to upload to Telegram"
+                )
+
         return {
             "id": file_obj.id,
             "name": file_obj.name,
             "size": file_obj.size,
             "path": file_obj.path,
             "storage": "s3" if s3_storage.enabled else "telegram",
-            "message": "File uploaded successfully"
+            "message": "File uploaded successfully",
         }
 
 
@@ -699,15 +728,22 @@ async def list_files(current_user: dict = Depends(get_current_user)):
     """Список файлов"""
     async with AsyncSessionLocal() as session:
         db_service = DatabaseService(session)
-        
-        files = await db_service.get_files_by_folder(1)
+        user_id = current_user["user_id"]
+        username = current_user["username"]
+
+        default_folder_path = f"/{username}/"
+        folder = await db_service.get_folder_by_path(default_folder_path)
+        if not folder:
+            return []
+
+        files = await db_service.get_files_by_folder(folder.id, user_id)
         return [
             FileInfo(
                 id=f.id,
                 name=f.name,
                 size=f.size,
                 mime_type=f.mime_type,
-                created_at=f.created_at
+                created_at=f.created_at,
             )
             for f in files
         ]
@@ -718,17 +754,18 @@ async def get_file(file_id: int, current_user: dict = Depends(get_current_user))
     """Информация о файле"""
     async with AsyncSessionLocal() as session:
         db_service = DatabaseService(session)
-        
-        file_obj = await db_service.get_file(file_id)
+        user_id = current_user["user_id"]
+
+        file_obj = await db_service.get_file_by_id(file_id, user_id=user_id)
         if not file_obj:
             raise HTTPException(status_code=404, detail="File not found")
-        
+
         return {
             "id": file_obj.id,
             "name": file_obj.name,
             "size": file_obj.size,
             "mime_type": file_obj.mime_type,
-            "created_at": file_obj.created_at
+            "created_at": file_obj.created_at,
         }
 
 
@@ -737,15 +774,18 @@ async def delete_file(file_id: int, current_user: dict = Depends(get_current_use
     """Удалить файл"""
     async with AsyncSessionLocal() as session:
         db_service = DatabaseService(session)
-        
-        file_obj = await db_service.get_file(file_id)
+        user_id = current_user["user_id"]
+
+        file_obj = await db_service.get_file_by_id(file_id, user_id=user_id)
         if not file_obj:
             raise HTTPException(status_code=404, detail="File not found")
-        
-        if s3_storage.enabled:
-            file_key = f"{current_user['user_id']}/{file_obj.name}"
-            await s3_storage.delete(file_key)
-        
+
+        if not s3_storage.enabled:
+            chunks = await db_service.get_chunks_by_file(file_id)
+            message_ids = [c.message_id for c in chunks if c.message_id]
+            if message_ids:
+                await telegram_service.delete_files(message_ids)
+
         await db_service.delete_file(file_id)
         return {"message": "File deleted successfully"}
 

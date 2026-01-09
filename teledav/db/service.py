@@ -12,9 +12,9 @@ class DatabaseService:
 
     # ==================== FOLDER OPERATIONS ====================
 
-    async def create_folder(self, name: str, path: str) -> Folder:
+    async def create_folder(self, name: str, path: str, user_id: int) -> Folder:
         """Создать новую папку"""
-        folder = Folder(name=name, path=path)
+        folder = Folder(name=name, path=path, user_id=user_id)
         self.session.add(folder)
         await self.session.commit()
         await self.session.refresh(folder)
@@ -55,10 +55,11 @@ class DatabaseService:
 
     # ==================== FILE OPERATIONS ====================
 
-    async def create_file(self, folder_id: int, name: str, path: str, size: int, mime_type: str = "application/octet-stream") -> File:
+    async def create_file(self, folder_id: int, user_id: int, name: str, path: str, size: int, mime_type: str = "application/octet-stream") -> File:
         """Создать новый файл"""
         file = File(
             folder_id=folder_id,
+            user_id=user_id,
             name=name,
             path=path,
             size=size,
@@ -69,29 +70,33 @@ class DatabaseService:
         await self.session.refresh(file)
         return file
 
-    async def get_file_by_path(self, path: str) -> Optional[File]:
+    async def get_file_by_path(self, path: str, user_id: int) -> Optional[File]:
         """Получить файл по пути"""
         result = await self.session.execute(
-            select(File).where(File.path == path)
+            select(File).where(File.path == path, File.user_id == user_id)
         )
         return result.scalars().first()
 
-    async def get_file_by_id(self, file_id: int) -> Optional[File]:
+    async def get_file_by_id(self, file_id: int, user_id: int = None) -> Optional[File]:
         """Получить файл по ID"""
+        if user_id:
+            result = await self.session.execute(
+                select(File).where(File.id == file_id, File.user_id == user_id)
+            )
+            return result.scalars().first()
         return await self.session.get(File, file_id)
 
-    async def get_files_by_folder(self, folder_id: int) -> List[File]:
+    async def get_files_by_folder(self, folder_id: int, user_id: int) -> List[File]:
         """Получить все файлы в папке"""
         result = await self.session.execute(
-            select(File).where(File.folder_id == folder_id)
+            select(File).where(File.folder_id == folder_id, File.user_id == user_id)
         )
         return result.scalars().all()
 
     async def delete_file(self, file_id: int) -> bool:
         """Удалить файл и все его части"""
-        await self.session.execute(
-            delete(File).where(File.id == file_id)
-        )
+        await self.delete_chunks_by_file(file_id)
+        await self.session.execute(delete(File).where(File.id == file_id))
         await self.session.commit()
         return True
 

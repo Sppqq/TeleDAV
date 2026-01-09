@@ -47,6 +47,8 @@ class Folder(Base):
 
     # Relationships
     files = relationship("File", back_populates="folder", cascade="all, delete-orphan")
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user = relationship("User")
 
 
 class File(Base):
@@ -55,6 +57,7 @@ class File(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     folder_id = Column(Integer, ForeignKey("folders.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     name = Column(String(255), nullable=False)
     path = Column(String(1024), unique=True, index=True, nullable=False)
     size = Column(BigInteger, nullable=False)  # Общий размер файла
@@ -64,6 +67,7 @@ class File(Base):
 
     # Relationships
     folder = relationship("Folder", back_populates="files")
+    user = relationship("User")
     chunks = relationship("FileChunk", back_populates="file", cascade="all, delete-orphan")
 
     __table_args__ = (UniqueConstraint("path", name="uq_file_path"),)
