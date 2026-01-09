@@ -6,7 +6,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from wsgidav.wsgidav_app import WsgiDAVApp
-from wsgidav.dc.domain_controller import SimpleDomainController
+from wsgidav.dc.base_dc import BaseDomainController
 from fastapi.middleware.wsgi import WSGIMiddleware
 
 from teledav.config import settings
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 # Контроллер для аутентификации WebDAV
-class SimpleDomainControllerImpl(SimpleDomainController):
+class SimpleDomainControllerImpl(BaseDomainController):
     def __init__(self):
         super().__init__()
         # Добавляем пользователя из конфига
