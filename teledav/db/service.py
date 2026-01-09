@@ -36,6 +36,13 @@ class DatabaseService:
             return result.scalars().first()  
         return await self.session.get(Folder, folder_id)
 
+    async def get_user_by_username(self, username: str) -> Optional["User"]:
+        """Get a user by username."""
+        result = await self.session.execute(
+            select(User).where(User.username == username)
+        )
+        return result.scalars().first()
+
     async def get_all_folders(self) -> List[Folder]:
         """Получить все папки"""
         result = await self.session.execute(select(Folder))
