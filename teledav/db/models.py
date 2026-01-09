@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     UniqueConstraint,
+    Text,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
@@ -19,40 +20,55 @@ from teledav.config import settings
 Base = declarative_base()
 
 
-class FileSystemNode(Base):
-    __tablename__ = "fs_nodes"
+class Folder(Base):
+    """Модель папки (Topic в Telegram)"""
+    __tablename__ = "folders"
 
-    id = Column(Integer, primary_key=True)
-    path = Column(String, unique=True, index=True, nullable=False)
-    parent_path = Column(String, index=True, nullable=False)
-    name = Column(String, nullable=False)
-    is_collection = Column(Boolean, default=False)
-    size = Column(BigInteger, default=0)
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False, unique=True)
+    path = Column(String(1024), unique=True, index=True, nullable=False)
+    topic_id = Column(BigInteger, nullable=True)  # Telegram Topic ID
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    modified_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
-    telegram_topic_id = Column(BigInteger, nullable=True)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
-    chunks = relationship("FileChunk", back_populates="node", cascade="all, delete-orphan")
+    # Relationships
+    files = relationship("File", back_populates="folder", cascade="all, delete-orphan")
 
-    __table_args__ = (UniqueConstraint("path", name="uq_path"),)
 
-    def is_dir(self):
-        return self.is_collection
+class File(Base):
+    """Модель файла"""
+    __tablename__ = "files"
 
-    def get_display_name(self):
-        return self.name
+    id = Column(Integer, primary_key=True, index=True)
+    folder_id = Column(Integer, ForeignKey("folders.id"), nullable=False)
+    name = Column(String(255), nullable=False)
+    path = Column(String(1024), unique=True, index=True, nullable=False)
+    size = Column(BigInteger, nullable=False)  # Общий размер файла
+    mime_type = Column(String(100), default="application/octet-stream")
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    # Relationships
+    folder = relationship("Folder", back_populates="files")
+    chunks = relationship("FileChunk", back_populates="file", cascade="all, delete-orphan")
+
+    __table_args__ = (UniqueConstraint("path", name="uq_file_path"),)
 
 
 class FileChunk(Base):
+    """Модель части файла"""
     __tablename__ = "file_chunks"
 
-    id = Column(Integer, primary_key=True)
-    node_id = Column(Integer, ForeignKey("fs_nodes.id"), nullable=False)
-    telegram_message_id = Column(BigInteger, nullable=False)
-    telegram_file_id = Column(String, nullable=False)
-    chunk_order = Column(Integer, nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
+    chunk_number = Column(Integer, nullable=False)  # Порядковый номер части
+    size = Column(BigInteger, nullable=False)  # Размер этой части
+    message_id = Column(BigInteger, nullable=True)  # Telegram Message ID
+    thread_id = Column(BigInteger, nullable=True)  # Telegram Thread ID (Topic)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
-    node = relationship("FileSystemNode", back_populates="chunks")
+    # Relationships
+    file = relationship("File", back_populates="chunks")
 
 
 engine = create_async_engine(settings.database_url)

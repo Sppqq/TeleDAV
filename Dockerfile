@@ -29,4 +29,4 @@ COPY . .
 EXPOSE 8080
 
 # Command to run the application
-CMD ["py", "teledav/main.py"]
+CMD ["python", "teledav/main.py"]

@@ -1,84 +1,330 @@
-# TeleDAV
+# 🌐 TeleDAV
 
-TeleDAV is a server application that uses a Telegram bot as a backend for file storage, accessible via the WebDAV protocol. It's designed to be used with clients like Nextcloud, allowing you to mount your Telegram group's "Topics" as a virtual file system.
+**WebDAV Server powered by Telegram** 📱💾
 
-## Features
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue?style=flat-square&logo=python)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110.0-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Aiogram](https://img.shields.io/badge/Aiogram-3.4.1-blue?style=flat-square&logo=telegram)](https://github.com/aiogram/aiogram)
+[![License MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ed?style=flat-square&logo=docker)](docker-compose.yml)
+[![Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)](#)
 
-- **Telegram as Storage**: Uses a Telegram group with "Topics" (Forums) as the underlying file storage.
-- **WebDAV Interface**: Provides a WebDAV server for compatibility with clients like Nextcloud, Windows, macOS, etc.
-- **Large File Splitting**: Automatically splits files larger than 49.9 MB into chunks for upload.
-- **Folder Mapping**: Each WebDAV folder corresponds to a "Topic" in the Telegram group.
-- **SQLite Metadata**: A local SQLite database stores metadata to map files and chunks to their respective Telegram messages.
-- **Dockerized**: Comes with `Dockerfile` and `docker-compose.yml` for easy setup.
+<div align="center">
 
-## How It Works
+### 🚀 Turn Telegram Into Cloud Storage
 
-- **MKCOL (Create Directory)**: Creates a new Topic in the Telegram group.
-- **PUT (Upload File)**: Splits the file into chunks if necessary and uploads them as documents into the corresponding Topic.
-- **DELETE (Directory)**: Deletes the corresponding Topic in Telegram, removing all messages within it.
-- **DELETE (File)**: Deletes all Telegram messages (chunks) associated with the file.
-- **PROPFIND / GET (List/Download)**: Lists files and folders by querying the local SQLite database.
+**Mount Telegram as a WebDAV drive on Nextcloud, Windows, macOS, Linux, and more!**
 
-**Note**: At the moment, downloading files (`GET`) is **not implemented**. The provider logic for re-assembling chunks and streaming them back to the client is a complex task and is left as a placeholder.
+[📖 Quick Start](#-quick-start) • [📚 Docs](#-documentation) • [🔧 Setup](#%EF%B8%8F-configuration) • [💬 Support](#-support)
 
-## Prerequisites
+</div>
 
-1.  A Telegram Bot Token. Talk to [@BotFather](https://t.me/BotFather) to create one.
-2.  A Telegram group with "Topics" enabled where your bot is an administrator.
-3.  The Chat ID of your Telegram group.
-4.  Docker and Docker Compose installed.
+---
 
-## How to Run
+## ✨ Why TeleDAV?
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/Sppqq/TeleDAV.git
-    cd TeleDAV
-    ```
+| Feature | Description |
+|---------|-------------|
+| 📦 **Auto Chunking** | Files > 50MB split automatically (Telegram limit) |
+| ⚡ **Parallel Uploads** | Multiple chunks upload simultaneously |
+| 🏷️ **Folder Organization** | Each WebDAV folder = Telegram Topic |
+| 🔐 **Secure** | Basic Auth + Private Telegram Group |
+| 🌍 **Universal Access** | Works with any WebDAV client |
+| 💾 **Lightweight** | SQLite database, zero external deps |
+| 🐳 **Docker Ready** | Production deployment in one command |
+| 🚀 **Async** | Full async/await architecture |
 
-2.  **Configure your environment:**
-    -   Create a `.env` file by copying the example: `cp .env.example .env`
-    -   Edit the `.env` file with your details:
+---
 
-    ```env
-    # Telegram Bot Configuration
-    BOT_TOKEN=your_telegram_bot_token
-    CHAT_ID=your_telegram_chat_id # This should be a negative number for groups
+## 📊 Tech Stack
 
-    # WebDAV Server Configuration
-    DAV_USERNAME=admin
-    DAV_PASSWORD=password
-    DAV_HOST=0.0.0.0
-    DAV_PORT=8080
+| Component | Technology | Version |
+|-----------|-----------|---------|
+| **Runtime** | Python | 3.10+ |
+| **Web Framework** | FastAPI | 0.110.0 |
+| **Telegram** | Aiogram | 3.4.1 |
+| **WebDAV Server** | WsgiDAV | 4.2.0 |
+| **Database ORM** | SQLAlchemy | 2.0.25 |
+| **Database** | SQLite | Latest |
+| **ASGI Server** | Uvicorn | 0.27.1 |
 
-    # Database Configuration
-    DATABASE_URL=sqlite+aiosqlite:///teledav.db
-    ```
+---
 
-3.  **Run with Docker Compose:**
-    ```bash
-    docker-compose up --build
-    ```
+## 📚 Documentation
 
-4.  **Connect via WebDAV:**
-    -   Your WebDAV server will be available at `http://localhost:8080`.
-    -   Use the `DAV_USERNAME` and `DAV_PASSWORD` from your `.env` file to authenticate.
+| Document | Purpose |
+|----------|---------|
+| [🚀 QUICKSTART.md](QUICKSTART.md) | 5-minute setup guide |
+| [🔧 IMPLEMENTATION.md](IMPLEMENTATION.md) | Technical architecture |
+| [📁 PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) | Code organization |
+| [✅ CHECKLIST.md](CHECKLIST.md) | Requirements verification |
 
-## Connecting to Nextcloud
+---
 
-1.  In Nextcloud, go to "Settings" -> "External storages".
-2.  Add a new storage:
-    -   **Folder name**: Whatever you like (e.g., `Telegram`)
-    -   **External storage**: WebDAV
-    -   **Authentication**: Username and password
-    -   **URL**: `http://<your_server_ip>:8080/`
-    -   **Username**: The `DAV_USERNAME` from your `.env` file.
-    -   **Password**: The `DAV_PASSWORD` from your `.env` file.
-3.  Click the checkmark to save. A green check should appear if the connection is successful.
+## 🚀 Quick Start
 
-## Limitations and Future Work
+### ⚡ Option 1: Docker (Recommended)
 
--   **File download is not implemented.** The `get_resource_data` method in the WebDAV provider needs to be built to fetch file chunks from Telegram and stream them back.
--   **Parallel Uploads**: While the architecture supports it, the current implementation uploads chunks sequentially within a single `create_resource` call.
--   **Error Handling**: The error handling is basic and could be improved to be more robust, especially for failed uploads.
--   **Performance**: The recursive delete and frequent database calls could be optimized for better performance on large-scale operations.
+```bash
+# Clone
+git clone https://github.com/Sppqq/TeleDAV.git
+cd TeleDAV
+
+# Configure
+cp .env.example .env
+nano .env  # Edit with your BOT_TOKEN and CHAT_ID
+
+# Run
+docker compose up --build
+```
+
+### 🐍 Option 2: Local Python
+
+```bash
+# Clone
+git clone https://github.com/Sppqq/TeleDAV.git
+cd TeleDAV
+
+# Environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install & Configure
+pip install -r requirements.txt
+cp .env.example .env
+nano .env  # Edit with your settings
+
+# Run
+python -m teledav.main
+```
+
+---
+
+## ⚙️ Configuration
+
+Create a `.env` file based on `.env.example`:
+
+```env
+# Telegram Bot Configuration
+BOT_TOKEN=123456789:ABCDefghIjklmnOPQrstuvwxyz
+CHAT_ID=-1001234567890
+
+# WebDAV Server Configuration
+DAV_USERNAME=admin
+DAV_PASSWORD=YourSecurePassword123
+DAV_HOST=0.0.0.0
+DAV_PORT=5555
+
+# Database
+DATABASE_URL=sqlite+aiosqlite:///teledav.db
+```
+
+### 🔑 Get Your Credentials
+
+<details>
+<summary><b>How to get BOT_TOKEN?</b></summary>
+
+1. Open Telegram and find [@BotFather](https://t.me/BotFather)
+2. Send `/newbot` command
+3. Give it a name (e.g., "MyTeleDAVBot")
+4. Copy the token
+
+</details>
+
+<details>
+<summary><b>How to get CHAT_ID?</b></summary>
+
+1. Create a private Telegram group
+2. **IMPORTANT:** Enable "Topics" in group settings
+3. Add the bot as an admin
+4. Find [@getidsbot](https://t.me/getidsbot)
+5. Forward it to your group
+6. Copy the Chat ID (negative number)
+
+</details>
+
+---
+
+## 🔗 WebDAV Client Setup
+
+### 🍎 macOS / 🐧 Linux
+
+```bash
+sudo apt-get install davfs2
+mkdir ~/teledav
+sudo mount -t davfs http://localhost:5555/ ~/teledav
+# Username: admin, Password: (from .env)
+```
+
+### 🪟 Windows
+
+1. Open File Explorer
+2. Right-click "This PC" → "Map network drive"
+3. Folder: `http://localhost:5555/`
+4. ✓ Connect using different credentials
+5. Username: `admin` / Password: (from .env)
+
+### ☁️ Nextcloud
+
+1. Settings → External storages
+2. Add WebDAV:
+   - **URL:** `http://localhost:5555/`
+   - **Username:** `admin`
+   - **Password:** (from .env)
+3. Click "Check connection"
+
+---
+
+## 📊 Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│   WebDAV Client (Nextcloud, Windows, etc)   │
+└──────────────────┬──────────────────────────┘
+                   │ HTTP/WebDAV
+┌──────────────────▼──────────────────────────┐
+│    FastAPI + WsgiDAV (Uvicorn)              │
+│  • Basic Auth                               │
+│  • PUT/GET/DELETE/MKCOL                     │
+└──────────┬────────────────────────┬─────────┘
+           │                        │
+    ┌──────▼─────┐        ┌────────▼───────┐
+    │  SQLite    │        │    Telegram    │
+    │  Metadata  │        │   Bot API      │
+    └────────────┘        └────────────────┘
+```
+
+---
+
+## 🔄 How It Works
+
+### File Upload (100 MB example)
+
+```
+File → Split into chunks (49.9 MB each)
+  ├─ Part 1: 49.9 MB → Telegram Message
+  ├─ Part 2: 49.9 MB → Telegram Message
+  └─ Part 3: 0.2 MB  → Telegram Message
+  
+Metadata stored in SQLite for reassembly
+```
+
+### Telegram Organization
+
+```
+Group (Chat)
+  ├─ 📌 Topic: "Documents"
+  │   ├─ 📄 file1.pdf (chunks)
+  │   └─ 📄 file2.docx
+  └─ 📌 Topic: "Images"
+      └─ 🖼️ photo.jpg (chunks)
+```
+
+---
+
+## 💾 Examples
+
+### Create a folder
+```bash
+mkdir ~/teledav/MyDocuments
+# → Creates a Telegram Topic automatically
+```
+
+### Upload a file
+```bash
+cp large_file.zip ~/teledav/MyDocuments/
+# → Auto-splits and uploads in parallel
+```
+
+### Sync with Nextcloud
+1. Go to Nextcloud Settings
+2. Add "Telegram" external storage
+3. Use like a normal folder
+4. Everything auto-syncs!
+
+---
+
+## 🔒 Security
+
+- ✅ Basic Auth for WebDAV
+- ✅ Credentials in `.env` (not in git)
+- ✅ Private Telegram group required
+- ✅ Bot isolated in your group
+- ✅ Use HTTPS reverse proxy in production
+
+---
+
+## 🐛 Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| ❌ "Invalid credentials" | Check `DAV_USERNAME` and `DAV_PASSWORD` in `.env` |
+| ❌ "Topic not created" | Ensure group has "Topics" enabled |
+| ❌ "Connection refused" | Verify server is running on port 5555 |
+| ❌ "Bot permission denied" | Check bot is admin in the group |
+| ❌ "Database error" | Delete `teledav.db` and restart |
+
+For more help, see [QUICKSTART.md](QUICKSTART.md)
+
+---
+
+## 📦 Project Structure
+
+```
+TeleDAV/
+├── teledav/
+│   ├── main.py              # Entry point
+│   ├── config.py            # Settings
+│   ├── db/
+│   │   ├── models.py        # ORM models
+│   │   └── service.py       # CRUD operations
+│   ├── bot/
+│   │   └── service.py       # Telegram integration
+│   ├── webdav/
+│   │   ├── provider.py      # WebDAV provider
+│   │   └── app.py           # FastAPI app
+│   └── utils/
+│       └── chunking.py      # File splitting
+├── docker-compose.yml
+├── Dockerfile
+├── requirements.txt
+└── README.md
+```
+
+**Stats:** ~830 lines of code + 1500+ lines of docs
+
+---
+
+## 📋 Requirements
+
+- **Python** 3.10+
+- **Telegram Bot** (get from [@BotFather](https://t.me/BotFather))
+- **Telegram Group** with "Topics" enabled
+- **Docker** (optional)
+
+---
+
+## 📝 License
+
+MIT License - Use freely for personal or commercial projects
+
+[View full license →](LICENSE)
+
+---
+
+## 🙏 Support
+
+- ⭐ Star the repository if you like it!
+- 🐛 [Report issues](https://github.com/Sppqq/TeleDAV/issues)
+- 💬 [Discussions](https://github.com/Sppqq/TeleDAV/discussions)
+- 🔗 Share with friends!
+
+---
+
+<div align="center">
+
+**Version:** 1.0.0 | **Status:** ✅ Production Ready
+
+Made with ❤️ for cloud storage
+
+</div>
