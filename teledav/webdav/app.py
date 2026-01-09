@@ -673,13 +673,30 @@ async def upload_file(
 
         # Проверяем и создаем папку по умолчанию для пользователя
         default_folder_path = f"/{username}/"
-        folder = await db_service.get_folder_by_path(default_folder_path)
+        folder = await db_service.get_folder_by_path(default_folder_path, user_id)
         if not folder:
+            topic_id = await telegram_service.create_topic(name=f"{username}'s folder")
+            if not topic_id:
+                raise HTTPException(
+                    status_code=500, detail="Could not create Telegram topic"
+                )
+
             folder = await db_service.create_folder(
                 name=f"{username}'s folder",
                 path=default_folder_path,
                 user_id=user_id,
             )
+            await db_service.update_folder_topic(folder.id, topic_id)
+            folder.topic_id = topic_id
+
+        if not folder.topic_id:
+            topic_id = await telegram_service.create_topic(name=folder.name)
+            if not topic_id:
+                raise HTTPException(
+                    status_code=500, detail="Could not create Telegram topic"
+                )
+            await db_service.update_folder_topic(folder.id, topic_id)
+            folder.topic_id = topic_id
 
         content = await file.read()
         file_size = len(content)
@@ -699,16 +716,14 @@ async def upload_file(
             if not success:
                 raise HTTPException(status_code=500, detail="Failed to upload to S3")
         else:
-            # TODO: get topic_id from folder
-            topic_id = 1
             chunk_obj = await db_service.create_chunk(file_obj.id, 0, file_size)
             result = await telegram_service.upload_chunk(
-                topic_id, content, file.filename
+                folder.topic_id, content, file.filename
             )
             if result:
                 message_id, _ = result
                 await db_service.update_chunk_message_ids(
-                    chunk_obj.id, message_id, topic_id
+                    chunk_obj.id, message_id, folder.topic_id
                 )
             else:
                 raise HTTPException(
