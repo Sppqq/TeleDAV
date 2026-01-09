@@ -455,6 +455,7 @@ async def web_app():
                 
                 const data = await res.json();
                 localStorage.setItem('token', data.access_token);
+                token = data.access_token;
                 showDashboard();
             } catch (err) {
                 errorDiv.textContent = err.message;
@@ -480,6 +481,7 @@ async def web_app():
                 
                 const data = await res.json();
                 localStorage.setItem('token', data.access_token);
+                token = data.access_token;
                 showDashboard();
             } catch (err) {
                 errorDiv.textContent = err.message;
