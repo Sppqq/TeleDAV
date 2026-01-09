@@ -8,4 +8,7 @@ services:
     ports:
       - "${DAV_PORT}:${DAV_PORT}"
     volumes:
-      - ./teledav.db:/app/teledav.db
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/teledav.db
+    working_dir: /app
