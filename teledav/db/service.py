@@ -20,16 +20,19 @@ class DatabaseService:
         await self.session.refresh(folder)
         return folder
 
-    async def get_folder_by_path(self, path: str) -> Optional[Folder]:
+    async def get_folder_by_path(self, path: str, user_id: int) -> Optional[Folder]:
         """Получить папку по пути"""
         result = await self.session.execute(
-            select(Folder).where(Folder.path == path)
+            select(Folder).where(Folder.path == path, Folder.user_id == user_id)
         )
         return result.scalars().first()
 
-    async def get_folder_by_id(self, folder_id: int) -> Optional[Folder]:
+    async def get_folder_by_id(self, folder_id: int, user_id: int) -> Optional[Folder]:
         """Получить папку по ID"""
-        return await self.session.get(Folder, folder_id)
+        result = await self.session.execute(
+            select(Folder).where(Folder.id == folder_id, Folder.user_id == user_id)
+        )
+        return result.scalars().first()
 
     async def get_all_folders(self) -> List[Folder]:
         """Получить все папки"""

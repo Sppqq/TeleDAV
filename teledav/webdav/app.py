@@ -749,7 +749,7 @@ async def list_files(current_user: dict = Depends(get_current_user)):
         username = current_user["username"]
 
         default_folder_path = f"/{username}/"
-        folder = await db_service.get_folder_by_path(default_folder_path)
+        folder = await db_service.get_folder_by_path(default_folder_path, user_id)
         if not folder:
             return []
 
