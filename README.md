@@ -32,7 +32,7 @@ TeleDAV is a server application that uses a Telegram bot as a backend for file s
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/TeleDAV.git
+    git clone https://github.com/Sppqq/TeleDAV.git
     cd TeleDAV
     ```
 
