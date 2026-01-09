@@ -11,6 +11,7 @@ from typing import List, Optional
 import jwt
 import hashlib
 from datetime import datetime, timedelta
+from sqlalchemy import select
 
 from teledav.config import settings
 from teledav.db.models import create_tables, AsyncSessionLocal, User
@@ -610,9 +611,8 @@ async def register(user_data: UserRegister):
     """Регистрация нового пользователя"""
     async with AsyncSessionLocal() as session:
         result = await session.execute(
-            session.query(User).filter(User.username == user_data.username)
+            select(User).where(User.username == user_data.username)
         )
-        if result.scalars().first():
             raise HTTPException(status_code=400, detail="Username already exists")
         
         user = User(
@@ -638,7 +638,7 @@ async def login(user_data: UserLogin):
     """Логин пользователя"""
     async with AsyncSessionLocal() as session:
         result = await session.execute(
-            session.query(User).filter(User.username == user_data.username)
+            select(User).where(User.username == user_data.username)
         )
         user = result.scalars().first()
         
